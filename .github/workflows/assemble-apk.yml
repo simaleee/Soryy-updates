@@ -1,0 +1,43 @@
+name: Assemble uploaded APK
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Join APK parts and verify SHA-256
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, re, shutil, subprocess
+          repo = os.environ['GH_REPO']
+          name = 'Soryy-0.5.2-test10-arm64.apk'
+          expected = '12a7e745c1045552ef1d01f00a9c0d9b2ce8091bc3b2bb296d02c1ad0c74c955'
+          release = json.loads(subprocess.check_output(['gh', 'api', f'repos/{repo}/releases/440666101']))
+          assert release['tag_name'] == 'v0.5.2'
+          parts = sorted((a for a in release['assets'] if re.fullmatch(re.escape(name) + r'\.part\d{3}', a['name'])), key=lambda a: a['name'])
+          assert len(parts) == 23, f'Expected 23 parts, found {len(parts)}'
+          pathlib.Path('out').mkdir(exist_ok=True)
+          target = pathlib.Path('out') / name
+          with target.open('wb') as output:
+              for index, asset in enumerate(parts):
+                  assert asset['name'] == name + f'.part{index:03}' and asset['state'] == 'uploaded'
+                  chunk = pathlib.Path('part.tmp')
+                  with chunk.open('wb') as stream:
+                      subprocess.run(['gh', 'api', asset['url'], '-H', 'Accept: application/octet-stream'], stdout=stream, check=True)
+                  assert chunk.stat().st_size == asset['size']
+                  with chunk.open('rb') as stream:
+                      shutil.copyfileobj(stream, output)
+                  print(f'Joined part {index+1}/{len(parts)}', flush=True)
+          with target.open('rb') as stream:
+              actual = hashlib.file_digest(stream, 'sha256').hexdigest()
+          assert actual == expected, f'SHA-256 mismatch: {actual}'
+          assert target.stat().st_size == 380942232
+          print('APK assembled; size and SHA-256 verified', flush=True)
+          subprocess.run(['gh', 'release', 'upload', 'v0.5.2', str(target), '--repo', repo], check=True)
+          PY
