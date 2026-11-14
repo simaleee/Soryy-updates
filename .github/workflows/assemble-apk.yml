@@ -16,10 +16,10 @@ jobs:
           python3 - <<'PY'
           import hashlib, json, os, pathlib, re, shutil, subprocess
           repo = os.environ['GH_REPO']
-          name = 'Soryy-0.6.1-test12-arm64.apk'
-          expected = '609e79a6cac4b5a75e5c77d38d3d35832ecb046f7b2fb4501a0dabc4ae9da037'
-          release = json.loads(subprocess.check_output(['gh', 'api', f'repos/{repo}/releases/443212580']))
-          assert release['tag_name'] == 'v0.6.1'
+          name = 'Soryy-0.6.2-test13-arm64.apk'
+          expected = '886baad9cd04d113a61bc76c8fda73dea7624551101561eaed92e1fc142b3a49'
+          release = json.loads(subprocess.check_output(['gh', 'api', f'repos/{repo}/releases/445253332']))
+          assert release['tag_name'] == 'v0.6.2'
           parts = sorted((a for a in release['assets'] if re.fullmatch(re.escape(name) + r'\.part\d{3}', a['name'])), key=lambda a: a['name'])
           assert len(parts) == 21, f'Expected 21 parts, found {len(parts)}'
           pathlib.Path('out').mkdir(exist_ok=True)
@@ -37,7 +37,8 @@ jobs:
           with target.open('rb') as stream:
               actual = hashlib.file_digest(stream, 'sha256').hexdigest()
           assert actual == expected, f'SHA-256 mismatch: {actual}'
-          assert target.stat().st_size == 347032185
+          assert target.stat().st_size == 346685206
           print('APK assembled; size and SHA-256 verified', flush=True)
-          subprocess.run(['gh', 'release', 'upload', 'v0.6.1', str(target), '--repo', repo], check=True)
+          subprocess.run(['gh', 'release', 'upload', 'v0.6.2', str(target), '--repo', repo], check=True)
           PY
+
