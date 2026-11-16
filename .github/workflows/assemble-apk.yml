@@ -43,7 +43,7 @@ jobs:
           assert re.fullmatch(r'[0-9a-f]{64}', expected)
           size, count = int(os.environ['APK_SIZE']), int(os.environ['APK_PARTS'])
           assert 0 < count < 200 and 0 < size < 2100000000
-          release = json.loads(subprocess.check_output(['gh', 'api', f'repos/{repo}/releases/tags/{tag}']))
+          release = next(r for r in json.loads(subprocess.check_output(['gh', 'api', f'repos/{repo}/releases?per_page=100'])) if r['tag_name'] == tag)
           parts = sorted((a for a in release['assets'] if re.fullmatch(re.escape(name) + r'[.]part[0-9]{3}', a['name'])), key=lambda a: a['name'])
           assert len(parts) == count
           pathlib.Path('out').mkdir(exist_ok=True)
