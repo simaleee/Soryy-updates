@@ -1,6 +1,22 @@
 name: Assemble uploaded APK
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        required: true
+        type: string
+      name:
+        required: true
+        type: string
+      sha256:
+        required: true
+        type: string
+      size:
+        required: true
+        type: string
+      parts:
+        required: true
+        type: string
 permissions:
   contents: write
 jobs:
@@ -12,16 +28,24 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          APK_TAG: ${{ inputs.tag }}
+          APK_NAME: ${{ inputs.name }}
+          APK_SHA: ${{ inputs.sha256 }}
+          APK_SIZE: ${{ inputs.size }}
+          APK_PARTS: ${{ inputs.parts }}
         run: |
           python3 - <<'PY'
           import hashlib, json, os, pathlib, re, shutil, subprocess
           repo = os.environ['GH_REPO']
-          name = 'Soryy-0.6.3-test14-arm64.apk'
-          expected = '342216a1017318267abfab62e9fa6eea35dea6d3649d749b850548abf367f7f1'
-          release = json.loads(subprocess.check_output(['gh', 'api', f'repos/{repo}/releases/445384426']))
-          assert release['tag_name'] == 'v0.6.3'
-          parts = sorted((a for a in release['assets'] if re.fullmatch(re.escape(name) + r'\.part\d{3}', a['name'])), key=lambda a: a['name'])
-          assert len(parts) == 21, f'Expected 21 parts, found {len(parts)}'
+          tag, name, expected = [os.environ[k] for k in ['APK_TAG', 'APK_NAME', 'APK_SHA']]
+          assert re.fullmatch(r'v[0-9]+[.][0-9]+[.][0-9]+', tag)
+          assert re.fullmatch(r'Soryy-[0-9.]+-test[0-9]+-arm64[.]apk', name)
+          assert re.fullmatch(r'[0-9a-f]{64}', expected)
+          size, count = int(os.environ['APK_SIZE']), int(os.environ['APK_PARTS'])
+          assert 0 < count < 200 and 0 < size < 2100000000
+          release = json.loads(subprocess.check_output(['gh', 'api', f'repos/{repo}/releases/tags/{tag}']))
+          parts = sorted((a for a in release['assets'] if re.fullmatch(re.escape(name) + r'[.]part[0-9]{3}', a['name'])), key=lambda a: a['name'])
+          assert len(parts) == count
           pathlib.Path('out').mkdir(exist_ok=True)
           target = pathlib.Path('out') / name
           with target.open('wb') as output:
@@ -33,12 +57,9 @@ jobs:
                   assert chunk.stat().st_size == asset['size']
                   with chunk.open('rb') as stream:
                       shutil.copyfileobj(stream, output)
-                  print(f'Joined part {index+1}/{len(parts)}', flush=True)
+                  print(f'Joined part {index+1}/{count}', flush=True)
           with target.open('rb') as stream:
-              actual = hashlib.file_digest(stream, 'sha256').hexdigest()
-          assert actual == expected, f'SHA-256 mismatch: {actual}'
-          assert target.stat().st_size == 346685211
-          print('APK assembled; size and SHA-256 verified', flush=True)
-          subprocess.run(['gh', 'release', 'upload', 'v0.6.3', str(target), '--repo', repo], check=True)
+              assert hashlib.file_digest(stream, 'sha256').hexdigest() == expected
+          assert target.stat().st_size == size
+          subprocess.run(['gh', 'release', 'upload', tag, str(target), '--repo', repo], check=True)
           PY
-
