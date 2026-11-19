@@ -41,11 +41,14 @@ jobs:
           assert re.fullmatch(r'v[0-9]+[.][0-9]+[.][0-9]+', tag)
           assert re.fullmatch(r'Soryy-[0-9.]+-test[0-9]+-arm64[.]apk', name)
           assert re.fullmatch(r'[0-9a-f]{64}', expected)
-          size, count = int(os.environ['APK_SIZE']), int(os.environ['APK_PARTS'])
-          assert 0 < count < 200 and 0 < size < 2100000000
+          size, requested_count = int(os.environ['APK_SIZE']), int(os.environ['APK_PARTS'])
+          assert 0 < requested_count < 200 and 0 < size < 2100000000
           release = next(r for r in json.loads(subprocess.check_output(['gh', 'api', f'repos/{repo}/releases?per_page=100'])) if r['tag_name'] == tag)
           parts = sorted((a for a in release['assets'] if re.fullmatch(re.escape(name) + r'[.]part[0-9]{3}', a['name'])), key=lambda a: a['name'])
-          assert len(parts) == count
+          if len(parts) != requested_count:
+              print(f'Using {len(parts)} uploaded part(s); form requested {requested_count}', flush=True)
+          count = len(parts)
+          assert 0 < count < 200
           pathlib.Path('out').mkdir(exist_ok=True)
           target = pathlib.Path('out') / name
           with target.open('wb') as output:
