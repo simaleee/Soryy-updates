@@ -43,7 +43,8 @@ jobs:
           assert re.fullmatch(r'[0-9a-f]{64}', expected)
           size, requested_count = int(os.environ['APK_SIZE']), int(os.environ['APK_PARTS'])
           assert 0 < requested_count < 200 and 0 < size < 2100000000
-          release = next(r for r in json.loads(subprocess.check_output(['gh', 'api', f'repos/{repo}/releases?per_page=100'])) if r['tag_name'] == tag)
+          release = json.loads(subprocess.check_output(['gh', 'api', f'repos/{repo}/releases/tags/{tag}']))
+          print(f'Release {release["id"]} exposes {len(release["assets"])} assets', flush=True)
           parts = sorted((a for a in release['assets'] if re.fullmatch(re.escape(name) + r'[.]part[0-9]{3}', a['name'])), key=lambda a: a['name'])
           if len(parts) != requested_count:
               print(f'Using {len(parts)} uploaded part(s); form requested {requested_count}', flush=True)
